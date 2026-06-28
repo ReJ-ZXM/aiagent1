@@ -5,70 +5,87 @@ interface Props {
   disabled: boolean
 }
 
+// Web Speech API 没有 TS 类型定义，全部使用 any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getSpeechRecognition(): any {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = window as any
+  return w.SpeechRecognition || w.webkitSpeechRecognition || null
+}
+
 export default function VoiceButton({ onResult, disabled }: Props) {
   const [recording, setRecording] = useState(false)
-  const [supported] = useState(
-    () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
-  )
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
+  const [supported] = useState(() => getSpeechRecognition() !== null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null)
 
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(() => {
+    const SpeechRecognition = getSpeechRecognition()
+    if (!SpeechRecognition) {
+      console.warn('浏览器不支持语音识别')
+      return
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm',
-      })
-      mediaRecorderRef.current = mediaRecorder
-      chunksRef.current = []
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'zh-CN'
+      recognition.interimResults = true
+      recognition.continuous = true
 
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data)
+      let finalTranscript = ''
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recognition.onresult = (event: any) => {
+        let interim = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i]
+          if (result.isFinal) {
+            finalTranscript += result[0]?.transcript || ''
+          } else {
+            interim += result[0]?.transcript || ''
+          }
+        }
+        if (interim) {
+          console.log('🎤:', interim)
         }
       }
 
-      mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop())
-        chunksRef.current = []
-
-        // P0: Use browser Web Speech API for local recognition
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const SpeechRecognition =
-          (window as any).SpeechRecognition ||
-          (window as any).webkitSpeechRecognition
-        if (SpeechRecognition) {
-          const recognition = new (SpeechRecognition as any)()
-          recognition.lang = 'zh-CN'
-          recognition.interimResults = false
-          recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript
-            onResult(transcript)
-          }
-          recognition.onerror = () => {
-            onResult('')
-          }
-          recognition.start()
-        } else {
-          console.warn('浏览器不支持语音识别')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recognition.onerror = (event: any) => {
+        console.warn('语音错误:', event.error)
+        if (event.error === 'no-speech') {
           onResult('')
         }
+        if (event.error !== 'aborted') {
+          setRecording(false)
+        }
       }
 
-      mediaRecorder.start()
+      recognition.onend = () => {
+        setRecording(false)
+        if (finalTranscript.trim()) {
+          onResult(finalTranscript.trim())
+        }
+        recognitionRef.current = null
+      }
+
+      recognition.start()
+      recognitionRef.current = recognition
       setRecording(true)
-    } catch {
-      console.warn('无法访问麦克风')
+    } catch (e) {
+      console.warn('无法启动语音识别:', e)
+      setRecording(false)
     }
   }, [onResult])
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop()
+      } catch {
+        // 可能已经停止了
+      }
     }
-    setRecording(false)
   }, [])
 
   if (!supported) return null
@@ -77,11 +94,16 @@ export default function VoiceButton({ onResult, disabled }: Props) {
     <button
       onMouseDown={startRecording}
       onMouseUp={stopRecording}
-      onMouseLeave={stopRecording}
+      onMouseLeave={(e) => {
+        // 只有正在录音时才在鼠标离开时停止
+        if (recording && e.buttons === 0) {
+          stopRecording()
+        }
+      }}
       onTouchStart={startRecording}
       onTouchEnd={stopRecording}
       disabled={disabled}
-      className={`rounded-full w-9 h-9 flex items-center justify-center transition shrink-0 ${
+      className={`rounded-full w-9 h-9 flex items-center justify-center transition shrink-0 select-none ${
         recording
           ? 'bg-red-500 text-white animate-pulse scale-110'
           : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
