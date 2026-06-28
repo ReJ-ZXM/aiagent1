@@ -1,9 +1,11 @@
 import type { HotelInfo } from '../../types'
+import { getHotelHomeUrl } from '../../lib/bookingUrl'
 
 interface Props { hotel: HotelInfo }
 
 export default function HotelCard({ hotel }: Props) {
   if (!hotel) return null
+
   return (
     <div className="card-travel p-4">
       <div className="flex items-center gap-2 mb-3">
@@ -32,12 +34,23 @@ export default function HotelCard({ hotel }: Props) {
             </div>
           )}
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-xs text-gray-400">每晚</p>
-          <p className="text-2xl font-bold text-sunset-500">¥{hotel.price_per_night}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {hotel.total_nights}晚共 <span className="font-bold text-gray-600">¥{hotel.total_price?.toLocaleString()}</span>
-          </p>
+        <div className="text-right shrink-0 flex flex-col items-end gap-2">
+          <div>
+            <p className="text-xs text-gray-400">每晚</p>
+            <p className="text-2xl font-bold text-sunset-500">¥{hotel.price_per_night}</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {hotel.total_nights}晚共 <span className="font-bold text-gray-600">¥{hotel.total_price?.toLocaleString()}</span>
+            </p>
+          </div>
+          <a
+            href={getHotelHomeUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-medium text-white bg-sunset-500 hover:bg-sunset-600 transition rounded-lg px-3 py-1.5 no-underline inline-flex items-center gap-1"
+          >
+            预订酒店
+            <span className="opacity-70 text-[10px]">@携程</span>
+          </a>
         </div>
       </div>
     </div>

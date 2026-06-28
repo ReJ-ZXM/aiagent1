@@ -3,9 +3,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.deps import get_db
+from fastapi.security import HTTPAuthorizationCredentials
+from app.api.deps import get_db, get_current_user, security
 from app.models.user import User
-from app.services.auth_service import hash_password, verify_password, create_token
+from app.services.auth_service import hash_password, verify_password, create_token, decode_token
 
 router = APIRouter(tags=["auth"])
 
@@ -49,6 +50,17 @@ async def login(req: LoginReq, db: AsyncSession = Depends(get_db)):
     return AuthResp(token=token, user={"id": user.id, "username": user.username, "home_city": user.home_city})
 
 @router.get("/auth/me")
-async def me(db: AsyncSession = Depends(get_db), user_id: str = Depends(lambda: None)):
-    """需要认证，从 header 获取 token"""
-    return {"user_id": user_id}
+async def me(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
+    """从 JWT token 恢复用户信息"""
+    if not credentials:
+        raise HTTPException(401, "未登录")
+    user_id = decode_token(credentials.credentials)
+    if not user_id:
+        raise HTTPException(401, "token 无效或已过期")
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "用户不存在")
+    return {"user": {"id": user.id, "username": user.username, "home_city": user.home_city}}

@@ -9,7 +9,7 @@ import type { Message, SSECardData } from '../types'
 export default function ChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>()
   const navigate = useNavigate()
-  const { user, token, logout } = useAuth()
+  const { user, token, ready, logout } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
   const [thinking, setThinking] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -96,14 +96,19 @@ export default function ChatPage() {
           )}
         </div>
         {convId && (
-          <button onClick={() => window.open(`/api/v1/trips/${convId}/export`, '_blank')}
-            className="text-xs text-gray-400 hover:text-travel-500 transition px-2 py-1.5 rounded-lg hover:bg-gray-50" title="导出行程">
-            导出
-          </button>
+          <a href={`/api/v1/trips/${convId}/export`}
+            className="text-xs font-medium text-red-500 bg-red-50 hover:bg-red-100 border border-red-200 transition px-3 py-1.5 rounded-lg inline-flex items-center gap-1 no-underline cursor-pointer" title="下载 PDF">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            下载 PDF
+          </a>
         )}
         <button onClick={() => { setMessages([]); setConvId(null); setThinking('') }}
           className="text-xs text-gray-400 hover:text-gray-600 transition px-2 py-1.5 rounded-lg hover:bg-gray-50">+ 新对话</button>
-        {user ? (
+        {!ready ? (
+          <div className="w-16 h-6 bg-gray-100 rounded animate-pulse" />
+        ) : user ? (
           <div className="flex items-center gap-1">
             <span className="text-xs text-gray-500 truncate max-w-[80px]">{user.username}</span>
             <button onClick={logout} className="text-xs text-gray-400 hover:text-red-500 transition px-1 py-0.5">退出</button>
@@ -113,7 +118,7 @@ export default function ChatPage() {
         )}
       </header>
 
-      <MessageList messages={messages} />
+      <MessageList messages={messages} convId={convId} />
 
       <InputBar
         onSend={handleSend}

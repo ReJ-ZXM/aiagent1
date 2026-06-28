@@ -6,6 +6,8 @@ interface Props { plan: TripPlan }
 export default function ItineraryCard({ plan }: Props) {
   if (!plan?.days) return null
 
+  const city = plan.destination || ''
+
   return (
     <div className="card-travel p-4">
       <div className="flex items-center gap-2 mb-4">
@@ -18,7 +20,7 @@ export default function ItineraryCard({ plan }: Props) {
       </div>
       <div className="space-y-5">
         {plan.days.map((day) => (
-          <DayPlanCard key={day.day_number} day={day} />
+          <DayPlanCard key={day.day_number} day={day} city={city} />
         ))}
       </div>
     </div>

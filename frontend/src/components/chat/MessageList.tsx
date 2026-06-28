@@ -6,9 +6,10 @@ import ItineraryCard from '../cards/ItineraryCard'
 
 interface Props {
   messages: Message[]
+  convId: string | null
 }
 
-export default function MessageList({ messages }: Props) {
+export default function MessageList({ messages, convId }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -91,7 +92,22 @@ export default function MessageList({ messages }: Props) {
                   <HotelCard hotel={card.data.hotel} />
                 )}
                 {card.type === 'itinerary' && (
-                  <ItineraryCard plan={card.data} />
+                  <>
+                    <ItineraryCard plan={card.data} />
+                    {convId && (
+                      <div className="flex justify-center mt-2">
+                        <a
+                          href={`/api/v1/trips/${convId}/export`}
+                          className="inline-flex items-center gap-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition rounded-xl px-5 py-2.5 shadow-sm no-underline cursor-pointer"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          下载 PDF
+                        </a>
+                      </div>
+                    )}
+                  </>
                 )}
                 {card.type === 'itinerary' && card.data.budget_breakdown && (
                   <BudgetBar

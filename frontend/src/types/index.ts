@@ -13,6 +13,7 @@ export interface TransportLeg {
 export interface HotelInfo {
   name: string
   address: string
+  city?: string
   price_per_night: number
   total_nights: number
   total_price: number
@@ -46,6 +47,7 @@ export interface BudgetBreakdown {
 
 export interface TripPlan {
   summary: string
+  destination?: string
   transport?: {
     to: TransportLeg
     back: TransportLeg
