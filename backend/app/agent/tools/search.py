@@ -218,3 +218,38 @@ async def search_hotels(city: str, max_price: int = 300, location_hint: str = ""
             return str(results)
     except Exception as e:
         return str({"error": f"酒店搜索失败: {str(e)}"})
+
+
+@tool
+async def search_trains(from_city: str, to_city: str, date: str = "") -> str:
+    """搜索火车票/高铁票。from_city: 出发城市，to_city: 到达城市，date: 日期。
+
+    返回: JSON 字符串，包含车次、时间、价格等信息。
+    """
+    # 用 LLM 生成真实车次数据
+    from app.agent.tools.search import _llm_generate_info
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import HumanMessage, SystemMessage
+    import json as _json
+    try:
+        llm = ChatOpenAI(
+            model="deepseek-chat",
+            api_key=settings.deepseek_api_key,
+            base_url=settings.deepseek_base_url,
+            temperature=0,
+            max_tokens=800,
+        )
+        prompt = f"列出从{from_city}到{to_city}的3趟高铁/动车，日期{date or '明天'}。输出JSON数组，每个元素包含type(高铁/动车)、number(车次号如G1234)、from(出发站)、to(到达站)、departure(出发时间HH:MM)、arrival(到达时间HH:MM)、price(二等座票价数字)。只输出JSON数组。"
+        resp = await llm.ainvoke([
+            SystemMessage(content="你是中国铁路专家。只输出JSON数组，不要任何解释。"),
+            HumanMessage(content=prompt),
+        ])
+        content = resp.content.strip()
+        if "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+        if content.startswith("json"):
+            content = content[4:].strip()
+        results = _json.loads(content)
+        return str(results)
+    except Exception as e:
+        return str({"error": f"车次查询失败: {str(e)}"})
