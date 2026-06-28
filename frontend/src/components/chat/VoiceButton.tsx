@@ -35,14 +35,15 @@ export default function VoiceButton({ onResult, disabled }: Props) {
         chunksRef.current = []
 
         // P0: Use browser Web Speech API for local recognition
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const SpeechRecognition =
-          (window as Record<string, unknown>).SpeechRecognition ||
-          (window as Record<string, unknown>).webkitSpeechRecognition
+          (window as any).SpeechRecognition ||
+          (window as any).webkitSpeechRecognition
         if (SpeechRecognition) {
-          const recognition = new (SpeechRecognition as new () => SpeechRecognition)()
+          const recognition = new (SpeechRecognition as any)()
           recognition.lang = 'zh-CN'
           recognition.interimResults = false
-          recognition.onresult = (event: SpeechRecognitionEvent) => {
+          recognition.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript
             onResult(transcript)
           }
