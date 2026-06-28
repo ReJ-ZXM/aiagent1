@@ -24,42 +24,42 @@ export default function InputBar({ onSend, onStop, disabled }: Props) {
     }
   }
 
-  const handleVoiceResult = (transcript: string) => {
-    if (transcript.trim()) {
-      onSend(transcript.trim())
-    }
-  }
-
   return (
-    <div className="border-t bg-white px-4 py-3 shrink-0">
+    <div className="border-t bg-white/90 backdrop-blur px-4 py-3 shrink-0">
       <div className="max-w-3xl mx-auto flex items-center gap-2">
-        <VoiceButton onResult={handleVoiceResult} disabled={disabled} />
+        <VoiceButton onResult={(t) => t.trim() && onSend(t.trim())} disabled={disabled} />
 
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={disabled ? 'AI 正在回复...' : '输入旅行需求，如"明天去杭州3天，预算5000"...'}
-          disabled={disabled}
-          className="flex-1 border rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-400"
-        />
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={disabled ? 'AI 正在回复...' : '输入旅行需求，如"明天去杭州3天，预算5000"...'}
+            disabled={disabled}
+            className="w-full border border-gray-200 rounded-full pl-4 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-travel-300 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 transition-shadow bg-white"
+          />
+        </div>
 
         {disabled ? (
           <button
             onClick={onStop}
-            className="bg-red-500 text-white rounded-full w-9 h-9 flex items-center justify-center hover:bg-red-600 transition shrink-0"
+            className="btn-icon bg-red-500 text-white hover:bg-red-600 shadow-md"
+            title="停止生成"
           >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="6" width="12" height="12" rx="1" />
+            </svg>
           </button>
         ) : (
           <button
             onClick={handleSend}
             disabled={!text.trim()}
-            className="bg-blue-500 text-white rounded-full w-9 h-9 flex items-center justify-center hover:bg-blue-600 transition shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-icon bg-gradient-to-br from-travel-500 to-ocean-500 text-white shadow-md hover:shadow-lg disabled:opacity-30 disabled:shadow-none"
+            title="发送"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14M12 5l7 7-7 7" />
             </svg>
           </button>
         )}

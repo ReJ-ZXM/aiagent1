@@ -80,13 +80,27 @@ export default function ChatPage() {
 
   return (
     <div className="h-screen flex flex-col">
-      <header className="bg-white border-b px-4 py-3 flex items-center gap-4 shrink-0">
-        <h1 className="text-lg font-bold">✈️ 旅行AI助手</h1>
-        {thinking && (
-          <span className="text-sm text-gray-500 animate-pulse truncate max-w-md">
-            {thinking}
-          </span>
-        )}
+      <header className="bg-white/95 backdrop-blur border-b border-gray-100 px-4 py-3 flex items-center gap-3 shrink-0 shadow-sm">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-travel-500 to-ocean-500 flex items-center justify-center text-white shadow-md">
+          <span className="text-base">✈️</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-base font-bold text-gray-800">旅行 AI 助手</h1>
+          {thinking && (
+            <p className="text-xs text-travel-500 animate-pulse-soft truncate">{thinking}</p>
+          )}
+        </div>
+        <button
+          onClick={() => {
+            setMessages([])
+            setConvId(null)
+            setThinking('')
+          }}
+          className="text-xs text-gray-400 hover:text-gray-600 transition px-3 py-1.5 rounded-lg hover:bg-gray-50"
+          title="新对话"
+        >
+          + 新对话
+        </button>
       </header>
 
       <MessageList messages={messages} />

@@ -1,33 +1,40 @@
 import type { HotelInfo } from '../../types'
 
-interface Props {
-  hotel: HotelInfo
-}
+interface Props { hotel: HotelInfo }
 
 export default function HotelCard({ hotel }: Props) {
   if (!hotel) return null
   return (
-    <div className="bg-white border rounded-xl p-4 shadow-sm">
-      <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
-        <span>🏨</span> 住宿推荐
-      </h3>
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="font-bold text-base">{hotel.name}</p>
-          <p className="text-sm text-gray-500 mt-1">{hotel.address}</p>
-          <div className="flex gap-2 mt-2 flex-wrap">
-            {hotel.highlights?.map((h, i) => (
-              <span key={i} className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
-                {h}
-              </span>
-            ))}
-          </div>
+    <div className="card-travel p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-lg">🏨</span>
+        <span className="text-sm font-bold text-gray-700">住宿推荐</span>
+      </div>
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-base text-gray-800 truncate">{hotel.name}</p>
+          <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+            <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {hotel.address}
+          </p>
+          {hotel.highlights?.length > 0 && (
+            <div className="flex gap-1.5 mt-2 flex-wrap">
+              {hotel.highlights.map((h, i) => (
+                <span key={i} className="text-xs bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full font-medium">
+                  {h}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="text-right shrink-0">
           <p className="text-xs text-gray-400">每晚</p>
-          <p className="text-xl font-bold text-orange-600">¥{hotel.price_per_night}</p>
-          <p className="text-xs text-gray-400 mt-1">
-            {hotel.total_nights}晚共 ¥{hotel.total_price?.toLocaleString()}
+          <p className="text-2xl font-bold text-sunset-500">¥{hotel.price_per_night}</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {hotel.total_nights}晚共 <span className="font-bold text-gray-600">¥{hotel.total_price?.toLocaleString()}</span>
           </p>
         </div>
       </div>
