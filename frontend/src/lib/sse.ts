@@ -1,3 +1,5 @@
+import { API_BASE } from '../config'
+
 interface SSECallbacks {
   onThinking?: (msg: string) => void
   onToolCall?: (tool: string) => void
@@ -20,7 +22,7 @@ export function streamChat(
     conversation_id: conversationId,
   })
 
-  fetch('/api/v1/chat/stream', {
+  fetch(`${API_BASE}/api/v1/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body,

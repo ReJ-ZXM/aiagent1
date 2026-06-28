@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import MessageList from '../components/chat/MessageList'
 import InputBar from '../components/chat/InputBar'
 import { streamChat } from '../lib/sse'
+import { API_BASE } from '../config'
 import type { Message, SSECardData } from '../types'
 
 export default function ChatPage() {
@@ -96,7 +97,7 @@ export default function ChatPage() {
           )}
         </div>
         {convId && (
-          <a href={`/api/v1/trips/${convId}/export`}
+          <a href={`${API_BASE}/api/v1/trips/${convId}/export`}
             className="text-xs font-medium text-red-500 bg-red-50 hover:bg-red-100 border border-red-200 transition px-3 py-1.5 rounded-lg inline-flex items-center gap-1 no-underline cursor-pointer" title="下载 PDF">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

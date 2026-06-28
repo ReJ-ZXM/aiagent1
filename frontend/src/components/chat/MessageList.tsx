@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { Message } from '../../types'
+import { API_BASE } from '../../config'
 import TransportCard from '../cards/TransportCard'
 import HotelCard from '../cards/HotelCard'
 import ItineraryCard from '../cards/ItineraryCard'
@@ -97,7 +98,7 @@ export default function MessageList({ messages, convId }: Props) {
                     {convId && (
                       <div className="flex justify-center mt-2">
                         <a
-                          href={`/api/v1/trips/${convId}/export`}
+                          href={`${API_BASE}/api/v1/trips/${convId}/export`}
                           className="inline-flex items-center gap-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition rounded-xl px-5 py-2.5 shadow-sm no-underline cursor-pointer"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { API_BASE } from '../config'
 
 interface User { id: string; username: string; home_city: string }
 interface AuthCtx {
@@ -22,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem('token')
     if (stored) {
-      fetch('/api/v1/auth/me', { headers: { 'Authorization': `Bearer ${stored}` } })
+      fetch(`${API_BASE}/api/v1/auth/me`, { headers: { 'Authorization': `Bearer ${stored}` } })
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(d => { setToken(stored); setUser(d.user) })
         .catch(() => { localStorage.removeItem('token') })
@@ -33,13 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (username: string, password: string) => {
-    const r = await fetch('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
+    const r = await fetch(`${API_BASE}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
     if (!r.ok) { const e = await r.json(); throw new Error(e.detail || '登录失败') }
     const d = await r.json(); setToken(d.token); setUser(d.user)
   }
 
   const register = async (username: string, password: string, home_city: string) => {
-    const r = await fetch('/api/v1/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, home_city }) })
+    const r = await fetch(`${API_BASE}/api/v1/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, home_city }) })
     if (!r.ok) { const e = await r.json(); throw new Error(e.detail || '注册失败') }
     const d = await r.json(); setToken(d.token); setUser(d.user)
   }
