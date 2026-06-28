@@ -32,7 +32,8 @@ export default function MessageList({ messages }: Props) {
       {messages.map((msg) => (
         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
           <div className="max-w-[80%]">
-            {msg.content && (
+            {/* 只在没有卡片时显示文字气泡，避免与卡片内容重复 */}
+            {msg.content && !msg.cards?.length && (
               <div
                 className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
                   msg.role === 'user'
@@ -43,7 +44,8 @@ export default function MessageList({ messages }: Props) {
                 {msg.content}
               </div>
             )}
-            {!msg.content && msg.role === 'assistant' && (
+            {/* 加载中动画：无内容且无卡片 */}
+            {!msg.content && !msg.cards?.length && msg.role === 'assistant' && (
               <div className="bg-white border rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
                 <span className="inline-flex gap-1">
                   <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
