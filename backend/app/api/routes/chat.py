@@ -64,12 +64,30 @@ def generate_sse(conv_id: str, user_content: str):
                 yield f"event: card\ndata: {json.dumps({'type': 'itinerary', 'data': plan})}\n\n"
 
             # 输出 assistant 最后的文本回复
-            messages = final_state.get("messages", [])
-            if messages:
-                last_msg = messages[-1]
-                content = last_msg.content if hasattr(last_msg, "content") else ""
-                if content:
-                    yield f"event: content\ndata: {json.dumps({'delta': content})}\n\n"
+            # 如果已有结构化行程卡片，只发送摘要（不发原始JSON代码块）
+            if plan and not plan.get("error") and plan.get("summary"):
+                yield f"event: content\ndata: {json.dumps({'delta': plan['summary']})}\n\n"
+            else:
+                messages = final_state.get("messages", [])
+                if messages:
+                    last_msg = messages[-1]
+                    content = last_msg.content if hasattr(last_msg, "content") else ""
+                    if content:
+                        # 移除可能的代码块标记，只保留纯文本
+                        cleaned = content
+                        if "```" in cleaned:
+                            # 去掉代码块，只保留外面的文字
+                            parts = []
+                            in_code = False
+                            for line in cleaned.split("\n"):
+                                if line.strip().startswith("```"):
+                                    in_code = not in_code
+                                    continue
+                                if not in_code:
+                                    parts.append(line)
+                            cleaned = "\n".join(parts).strip()
+                        if cleaned:
+                            yield f"event: content\ndata: {json.dumps({'delta': cleaned})}\n\n"
 
             yield f"event: done\ndata: {json.dumps({'conv_id': conv_id, 'usage': {'tokens': 0}})}\n\n"
 
