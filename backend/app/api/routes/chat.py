@@ -1,13 +1,15 @@
-"""对话 API — SSE 流式 + 同步 + 历史"""
+"""对话 API — SSE 流式 + 历史 + 导出"""
 import json
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select as sa_select
 from pydantic import BaseModel, Field
 
-from app.api.deps import get_db
+from app.api.deps import get_db, security
+from app.services.auth_service import decode_token
 from app.db.session import async_session
 from app.models.conversation import Conversation, Message
 from app.agent.graph import agent_graph
@@ -107,15 +109,24 @@ def generate_sse(conv_id: str, user_content: str, history: list[dict] | None = N
 
 
 @router.post("/chat/stream")
-async def chat_stream(req: ChatRequest):
+async def chat_stream(
+    req: ChatRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+):
     """SSE 流式对话"""
+    user_id = None
+    if credentials:
+        uid = decode_token(credentials.credentials)
+        if uid:
+            user_id = uid
+
     async with async_session() as db:
         if req.conversation_id:
             conv = await db.get(Conversation, req.conversation_id)
             if not conv:
                 raise HTTPException(status_code=404, detail="对话不存在")
         else:
-            conv = Conversation(title=req.content[:50])
+            conv = Conversation(title=req.content[:50], user_id=user_id)
             db.add(conv)
             await db.commit()
             await db.refresh(conv)
@@ -206,3 +217,30 @@ async def get_history(conv_id: str, db: AsyncSession = Depends(get_db)):
             for m in messages
         ],
     }
+
+@router.get("/trips/{conv_id}/export")
+async def export_trip(conv_id: str):
+    """导出行程为简单 HTML（可打印/保存PDF）"""
+    async with async_session() as db:
+        conv = await db.get(Conversation, conv_id)
+        if not conv or not conv.plan_snapshot:
+            raise HTTPException(404, "行程不存在")
+        plan = conv.plan_snapshot
+        days_html = ""
+        for d in plan.get("days", []):
+            items_html = ""
+            for item in d.get("items", []):
+                items_html += f"<li>{item.get('start','')}-{item.get('end','')} {item.get('title','')} - {item.get('description','')} ¥{item.get('cost',0)}</li>"
+            days_html += f"<h3>Day {d.get('day_number')} · {d.get('date')} — {d.get('title')}</h3><ul>{items_html}</ul>"
+        tiers = plan.get("budget_tiers", {})
+        tiers_html = ""
+        for k, v in tiers.items():
+            tiers_html += f"<tr><td>{k}</td><td>¥{v.get('total','')}</td><td>{v.get('transport','')}</td><td>{v.get('hotel','')}</td></tr>"
+        html = f"""<!DOCTYPE html><html lang="zh"><head><meta charset="UTF-8"><title>{plan.get('summary','行程')[:50]}</title>
+<style>body{{font-family:'Microsoft YaHei',sans-serif;max-width:800px;margin:0 auto;padding:20px}}h1{{color:#0284c7}}h2{{color:#333}}table{{width:100%;border-collapse:collapse}}td,th{{border:1px solid #ddd;padding:8px}}th{{background:#f0f9ff}}ul{{line-height:1.8}}@media print{{body{{padding:0}}}}</style></head>
+<body><h1>旅行方案</h1><p>{plan.get('summary','')}</p><h2>预算对比</h2><table><tr><th>档次</th><th>总价</th><th>交通</th><th>酒店</th></tr>{tiers_html}</table>
+<p>交通: {plan.get('transport',{}).get('to',{}).get('number','')} {plan.get('transport',{}).get('to',{}).get('from','')}→{plan.get('transport',{}).get('to',{}).get('to','')}</p>
+<p>酒店: {plan.get('hotel',{}).get('name','')} ¥{plan.get('hotel',{}).get('price_per_night','')}/晚</p>
+<h2>行程详情</h2>{days_html}</body></html>"""
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(html)

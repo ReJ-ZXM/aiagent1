@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import MessageList from '../components/chat/MessageList'
 import InputBar from '../components/chat/InputBar'
 import { streamChat } from '../lib/sse'
@@ -7,6 +8,8 @@ import type { Message, SSECardData } from '../types'
 
 export default function ChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>()
+  const navigate = useNavigate()
+  const { user, token, logout } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
   const [thinking, setThinking] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -92,17 +95,22 @@ export default function ChatPage() {
             <p className="text-xs text-travel-500 animate-pulse-soft truncate">{thinking}</p>
           )}
         </div>
-        <button
-          onClick={() => {
-            setMessages([])
-            setConvId(null)
-            setThinking('')
-          }}
-          className="text-xs text-gray-400 hover:text-gray-600 transition px-3 py-1.5 rounded-lg hover:bg-gray-50"
-          title="新对话"
-        >
-          + 新对话
-        </button>
+        {convId && (
+          <button onClick={() => window.open(`/api/v1/trips/${convId}/export`, '_blank')}
+            className="text-xs text-gray-400 hover:text-travel-500 transition px-2 py-1.5 rounded-lg hover:bg-gray-50" title="导出行程">
+            导出
+          </button>
+        )}
+        <button onClick={() => { setMessages([]); setConvId(null); setThinking('') }}
+          className="text-xs text-gray-400 hover:text-gray-600 transition px-2 py-1.5 rounded-lg hover:bg-gray-50">+ 新对话</button>
+        {user ? (
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-500 truncate max-w-[80px]">{user.username}</span>
+            <button onClick={logout} className="text-xs text-gray-400 hover:text-red-500 transition px-1 py-0.5">退出</button>
+          </div>
+        ) : (
+          <button onClick={() => navigate('/login')} className="text-xs text-white bg-travel-500 hover:bg-travel-600 transition px-3 py-1.5 rounded-lg">登录</button>
+        )}
       </header>
 
       <MessageList messages={messages} />
