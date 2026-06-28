@@ -72,8 +72,14 @@ async def plan_trip(state: AgentState) -> dict:
             }
             tool_fn = tool_map.get(tool_name)
             if tool_fn:
-                result = await tool_fn.ainvoke(tool_args)
-                tool_results.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+                try:
+                    result = await tool_fn.ainvoke(tool_args)
+                    tool_results.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+                except Exception as tool_err:
+                    tool_results.append(ToolMessage(
+                        content=str({"error": f"工具执行失败: {str(tool_err)}"}),
+                        tool_call_id=tc["id"],
+                    ))
 
     # Step 3: 用工具结果 + Claude 生成最终行程
     thinking_messages.append("正在生成行程方案...")
