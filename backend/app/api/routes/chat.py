@@ -21,7 +21,7 @@ class ChatRequest(BaseModel):
     content: str = Field(..., min_length=1, description="用户输入内容")
 
 
-async def generate_sse(conv_id: str, user_content: str):
+def generate_sse(conv_id: str, user_content: str):
     """生成 SSE 事件流 — 使用 ainvoke 单次执行，避免重复调用"""
     from langchain_core.messages import HumanMessage
 
