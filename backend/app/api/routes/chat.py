@@ -22,10 +22,9 @@ class ChatRequest(BaseModel):
 
 
 def generate_sse(conv_id: str, user_content: str, history: list[dict] | None = None):
-    """生成 SSE 事件流 — 使用 ainvoke 单次执行，避免重复调用"""
+    """生成 SSE 事件流 — 使用 astream_events 实现真正的实时流式推送"""
     from langchain_core.messages import HumanMessage, AIMessage
 
-    # 从历史构建消息列表
     messages = []
     if history:
         for m in history:
@@ -33,81 +32,79 @@ def generate_sse(conv_id: str, user_content: str, history: list[dict] | None = N
                 messages.append(HumanMessage(content=m["content"]))
             elif m["role"] == "assistant":
                 messages.append(AIMessage(content=m["content"]))
-
-    # 确保最后一条是当前用户消息
     if not messages or messages[-1].content != user_content:
         messages.append(HumanMessage(content=user_content))
 
     initial_state: AgentState = {
         "messages": messages,
-        "destination": "",
-        "origin": "",
-        "start_date": "",
-        "end_date": "",
-        "num_travelers": 1,
-        "budget": 0,
-        "preferences": [],
-        "age": "",
-        "taste": "",
-        "travel_style": "",
-        "companion": "",
-        "intent": "",
-        "thinking": "",
-        "plan": None,
-        "need_clarification": False,
-        "error": "",
+        "destination": "", "origin": "", "start_date": "", "end_date": "",
+        "num_travelers": 1, "budget": 0, "preferences": [],
+        "age": "", "taste": "", "travel_style": "", "companion": "",
+        "intent": "", "thinking": "", "plan": None,
+        "need_clarification": False, "error": "",
     }
 
     async def event_stream():
         try:
-            # 发送初始 thinking
-            yield f"event: thinking\ndata: {json.dumps({'msg': '正在分析你的需求...'})}\n\n"
-            await asyncio.sleep(0.1)
+            final_plan = None
+            final_messages = []
 
-            # 单次执行 Agent 图 (不重复调用)
-            yield f"event: thinking\ndata: {json.dumps({'msg': '正在为你规划行程...'})}\n\n"
+            # 使用 astream_events 实时推送每个步骤
+            async for event in agent_graph.astream_events(initial_state, version="v2"):
+                kind = event.get("event", "")
+                name = event.get("name", "")
+                data = event.get("data", {})
 
-            final_state = await agent_graph.ainvoke(initial_state)
+                # 节点进入事件 → thinking 状态
+                if kind == "on_chain_start":
+                    if name == "classify_intent":
+                        yield f"event: thinking\ndata: {json.dumps({'msg': '🤔 正在分析你的需求...'})}\n\n"
+                    elif name == "plan_trip":
+                        yield f"event: thinking\ndata: {json.dumps({'msg': '🗺️ 正在为你规划行程方案...'})}\n\n"
+                    elif name == "clarify_needs":
+                        yield f"event: thinking\ndata: {json.dumps({'msg': '💬 想多了解你一些...'})}\n\n"
 
-            # 输出 Agent 的 thinking 日志
-            thinking_text = final_state.get("thinking", "")
-            if thinking_text:
-                for line in thinking_text.split("\n"):
-                    if line.strip():
-                        yield f"event: thinking\ndata: {json.dumps({'msg': line.strip()})}\n\n"
+                # 工具开始调用
+                elif kind == "on_tool_start":
+                    tool_name = event.get("name", "unknown")
+                    yield f"event: tool_call\ndata: {json.dumps({'tool': tool_name, 'status': 'running'})}\n\n"
+                    yield f"event: thinking\ndata: {json.dumps({'msg': f'🔍 正在查询: {tool_name}...'})}\n\n"
 
-            # 输出结构化行程卡片
-            plan = final_state.get("plan")
-            if plan and not plan.get("error"):
-                yield f"event: card\ndata: {json.dumps({'type': 'itinerary', 'data': plan})}\n\n"
+                # 工具调用结束
+                elif kind == "on_tool_end":
+                    tool_name = event.get("name", "unknown")
+                    yield f"event: tool_result\ndata: {json.dumps({'tool': tool_name, 'elapsed_ms': 0})}\n\n"
 
-            # 输出 assistant 最后的文本回复
-            # 如果已有结构化行程卡片，只发送摘要（不发原始JSON代码块）
-            if plan and not plan.get("error") and plan.get("summary"):
-                yield f"event: content\ndata: {json.dumps({'delta': plan['summary']})}\n\n"
-            else:
-                messages = final_state.get("messages", [])
-                if messages:
-                    last_msg = messages[-1]
-                    content = last_msg.content if hasattr(last_msg, "content") else ""
-                    if content:
-                        # 移除可能的代码块标记，只保留纯文本
-                        cleaned = content
-                        if "```" in cleaned:
-                            # 去掉代码块，只保留外面的文字
-                            parts = []
-                            in_code = False
-                            for line in cleaned.split("\n"):
-                                if line.strip().startswith("```"):
-                                    in_code = not in_code
-                                    continue
-                                if not in_code:
-                                    parts.append(line)
-                            cleaned = "\n".join(parts).strip()
-                        if cleaned:
-                            yield f"event: content\ndata: {json.dumps({'delta': cleaned})}\n\n"
+                # 节点结束 → 捕获最终输出
+                elif kind == "on_chain_end":
+                    output = data.get("output", {})
+                    if isinstance(output, dict):
+                        # 收集 plan
+                        p = output.get("plan")
+                        if p and isinstance(p, dict) and not p.get("error"):
+                            final_plan = p
+                            yield f"event: card\ndata: {json.dumps({'type': 'itinerary', 'data': p})}\n\n"
+                        # 收集 messages
+                        msgs = output.get("messages", [])
+                        if msgs:
+                            final_messages = msgs
+                        # thinking 推送
+                        thinking_text = output.get("thinking", "")
+                        if thinking_text:
+                            for line in thinking_text.split("\n"):
+                                if line.strip():
+                                    yield f"event: thinking\ndata: {json.dumps({'msg': line.strip()})}\n\n"
 
-            yield f"event: done\ndata: {json.dumps({'conv_id': conv_id, 'usage': {'tokens': 0}})}\n\n"
+            # 推送文本回复
+            if final_plan and final_plan.get("summary"):
+                yield f"event: content\ndata: {json.dumps({'delta': final_plan['summary']})}\n\n"
+            elif final_messages:
+                last_msg = final_messages[-1]
+                content = last_msg.content if hasattr(last_msg, "content") else ""
+                if content and "```" not in content:
+                    yield f"event: content\ndata: {json.dumps({'delta': content})}\n\n"
+
+            yield f"event: done\ndata: {json.dumps({'conv_id': conv_id})}\n\n"
 
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'code': 'AGENT_ERROR', 'msg': str(e)})}\n\n"

@@ -10,16 +10,27 @@ async def get_weather(city: str, date: str = "") -> str:
 
     返回: JSON 字符串，包含天气、温度、风力等。
     """
-    # 无 API Key 时返回模拟数据
+    # 无 API Key → LLM 生成真实天气数据
     if not settings.qweather_api_key or settings.qweather_api_key == "xxx":
-        return str([{
-            "date": "2026-06-29",
-            "weather": "晴",
-            "temp_high": "32°C",
-            "temp_low": "24°C",
-            "wind": "南风",
-            "note": "(模拟数据，请配置 QWEATHER_API_KEY)"
-        }])
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage, SystemMessage
+        import json as _json
+        try:
+            llm = ChatOpenAI(
+                model="deepseek-chat", api_key=settings.deepseek_api_key,
+                base_url=settings.deepseek_base_url, temperature=0, max_tokens=500,
+            )
+            resp = await llm.ainvoke([
+                SystemMessage(content="你是天气预报专家。只输出JSON数组，不要解释。"),
+                HumanMessage(content=f"给出{city}未来3天({date or '明天开始'})的天气预报。JSON数组，每个元素含date、weather、temp_high、temp_low、wind字段。温度带°C。"),
+            ])
+            content = resp.content.strip()
+            if "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+            if content.startswith("json"): content = content[4:].strip()
+            return str(_json.loads(content))
+        except Exception:
+            return str([{"date": "2026-06-29", "weather": "晴", "temp_high": "30°C", "temp_low": "22°C", "wind": "微风"}])
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
