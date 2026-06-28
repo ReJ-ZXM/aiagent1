@@ -95,10 +95,8 @@ def generate_sse(conv_id: str, user_content: str, history: list[dict] | None = N
                                 if line.strip():
                                     yield f"event: thinking\ndata: {json.dumps({'msg': line.strip()})}\n\n"
 
-            # 推送文本回复
-            if final_plan and final_plan.get("summary"):
-                yield f"event: content\ndata: {json.dumps({'delta': final_plan['summary']})}\n\n"
-            elif final_messages:
+            # 推送文本回复 — 有卡片时不再单独发文字，避免重复
+            if not final_plan and final_messages:
                 last_msg = final_messages[-1]
                 content = last_msg.content if hasattr(last_msg, "content") else ""
                 if content and "```" not in content:

@@ -104,7 +104,7 @@ async def classify_intent(state: AgentState) -> dict:
     need_clarification = (
         intent == "plan_trip"
         and not state.get("need_clarification")
-        and (not travel_style or not taste or not age)
+        and (not travel_style or not taste or not age or not budget)
     )
 
     return {
