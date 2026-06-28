@@ -19,6 +19,12 @@ def _get_router_llm():
 
 async def classify_intent(state: AgentState) -> dict:
     """分类用户意图并抽取旅行实体"""
+    # 合并所有用户消息，而不仅仅是最后一条 (避免丢失前几轮的关键信息)
+    all_user_msgs = [m.content for m in state["messages"] if getattr(m, "type", "") == "human" or (hasattr(m, "content") and m.content)]
+    if hasattr(state["messages"][-1], "type"):
+        # LangChain messages have a type attribute
+        all_user_msgs = [m.content for m in state["messages"] if m.type == "human"]
+    full_user_input = " ; ".join(all_user_msgs) if all_user_msgs else ""
     user_input = state["messages"][-1].content if state["messages"] else ""
 
     # 构建已知信息上下文
@@ -66,14 +72,16 @@ async def classify_intent(state: AgentState) -> dict:
     companion = state.get("companion", "")
 
     if intent in ("plan_trip", "clarify_answer"):
+        # 用合并后的全体用户输入来提取实体（覆盖所有历史消息）
+        extract_input = full_user_input if len(full_user_input) > len(user_input) else user_input
         entity_resp = await router_llm.ainvoke([
             SystemMessage(content=ENTITY_EXTRACTION_PROMPT.format(
                 current_date=date.today().isoformat(),
                 home_city="上海",
                 known_info=known_context,
-                user_input=user_input,
+                user_input=extract_input,
             )),
-            HumanMessage(content=user_input),
+            HumanMessage(content=extract_input),
         ])
         try:
             entity = json.loads(entity_resp.content)
