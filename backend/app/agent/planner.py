@@ -1,26 +1,29 @@
-"""行程规划 Agent — 核心规划节点，使用 Claude + 工具"""
+"""行程规划 Agent — 核心规划节点，使用 DeepSeek + 工具"""
 import json
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from app.config import settings
 from app.agent.state import AgentState
 from app.agent.prompts import PLANNER_SYSTEM_PROMPT
 from app.agent.tools import ALL_TOOLS
 
 
-planner_llm = ChatAnthropic(
-    model="claude-sonnet-4-6",
-    api_key=settings.anthropic_api_key,
-    temperature=0.7,
-    max_tokens=4096,
-)
-
-# 绑定工具到 Claude
-planner_with_tools = planner_llm.bind_tools(ALL_TOOLS)
+def _get_planner_llm():
+    """延迟初始化，避免模块导入时因缺少 API Key 报错"""
+    return ChatOpenAI(
+        model="deepseek-chat",
+        api_key=settings.deepseek_api_key,
+        base_url=settings.deepseek_base_url,
+        temperature=0.7,
+        max_tokens=4096,
+    )
 
 
 async def plan_trip(state: AgentState) -> dict:
     """行程规划节点 — 调用工具搜集信息，然后生成行程"""
+    planner_llm = _get_planner_llm()
+    planner_with_tools = planner_llm.bind_tools(ALL_TOOLS)
+
     thinking_messages = []
 
     # 构建上下文
