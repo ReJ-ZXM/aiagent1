@@ -1,7 +1,70 @@
-"""搜索类工具 — 高德 POI API"""
+"""搜索类工具 — 高德 POI API + 联网搜索回退"""
+import re
 import httpx
 from langchain_core.tools import tool
 from app.config import settings
+
+
+async def _web_search(query: str, num: int = 5) -> list[dict]:
+    """联网搜索 — DuckDuckGo，带超时保护"""
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(
+                "https://lite.duckduckgo.com/lite/",
+                params={"q": query},
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            if resp.status_code != 200:
+                return []
+            html = resp.text
+            results = []
+            links = re.findall(
+                r'<a[^>]*href="([^"]+)"[^>]*>([^<]+)</a>\s*<span[^>]*>([^<]*)</span>',
+                html, re.DOTALL
+            )
+            for url, title, snippet in links[:num]:
+                title = title.strip()
+                snippet = snippet.strip() if snippet else title
+                if title and url.startswith("http"):
+                    results.append({"title": title, "url": url, "snippet": snippet})
+            return results
+    except Exception:
+        return []
+
+
+async def _llm_generate_info(city: str, info_type: str, count: int = 5) -> list[dict]:
+    """LLM 兜底 — 用 DeepSeek 的知识生成城市旅游数据"""
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import HumanMessage, SystemMessage
+    try:
+        llm = ChatOpenAI(
+            model="deepseek-chat",
+            api_key=settings.deepseek_api_key,
+            base_url=settings.deepseek_base_url,
+            temperature=0,
+            max_tokens=1000,
+        )
+        if info_type == "attractions":
+            prompt = f"列出{city}最热门的{count}个旅游景点，输出JSON数组，每个元素包含name、address、type、rating、location字段。只输出JSON。"
+        else:
+            prompt = f"列出{city}热门的{count}家酒店，输出JSON数组，每个元素包含name、address、rating字段。只输出JSON。"
+        resp = await llm.ainvoke([
+            SystemMessage(content="你是中国旅游专家。只输出JSON数组，不要任何解释。"),
+            HumanMessage(content=prompt),
+        ])
+        content = resp.content.strip()
+        # 提取 JSON
+        if "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+        if content.startswith("json"):
+            content = content[4:].strip()
+        import json
+        results = json.loads(content)
+        if isinstance(results, list):
+            return results
+    except Exception:
+        pass
+    return []
 
 # 无 API Key 时的模拟数据
 _MOCK_ATTRACTIONS = {
@@ -69,10 +132,18 @@ async def search_attractions(keywords: str, city: str = "", limit: int = 5) -> s
 
     返回: JSON 字符串，包含景点名称、地址、评分、类型。
     """
-    # 无 API Key 时返回模拟数据
+    # 无 API Key → 模拟 → 联网 → LLM 三级回退
     if not settings.amap_api_key or settings.amap_api_key == "xxx":
-        results = _MOCK_ATTRACTIONS.get(city, _MOCK_ATTRACTIONS.get("杭州", []))
-        return str(results[:limit])
+        results = _MOCK_ATTRACTIONS.get(city, [])
+        if not results:
+            results = _MOCK_ATTRACTIONS.get(city.rstrip("市"), [])
+        if not results:
+            results = await _web_search(f"{city} 热门景点 旅游攻略", num=limit)
+        if not results:
+            results = await _llm_generate_info(city, "attractions", limit)
+        if results:
+            return str(results[:limit])
+        return str([{"name": f"{city}热门景点", "address": city, "note": "无数据"}])
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -108,10 +179,18 @@ async def search_hotels(city: str, max_price: int = 300, location_hint: str = ""
 
     返回: JSON 字符串，包含酒店名称、地址、价格范围。
     """
-    # 无 API Key 时返回模拟数据
+    # 无 API Key → 模拟 → 联网 → LLM 三级回退
     if not settings.amap_api_key or settings.amap_api_key == "xxx":
-        results = _MOCK_HOTELS.get(city, _MOCK_HOTELS.get("杭州", []))
-        return str(results)
+        results = _MOCK_HOTELS.get(city, [])
+        if not results:
+            results = _MOCK_HOTELS.get(city.rstrip("市"), [])
+        if not results:
+            results = await _web_search(f"{city} 酒店 住宿推荐 价格", num=5)
+        if not results:
+            results = await _llm_generate_info(city, "hotels", 5)
+        if results:
+            return str(results)
+        return str([{"name": f"{city}经济型酒店", "address": city, "note": "无数据"}])
 
     try:
         keywords = f"{location_hint} 酒店" if location_hint else f"{city} 酒店"
