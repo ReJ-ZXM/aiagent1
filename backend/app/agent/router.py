@@ -7,12 +7,14 @@ from app.agent.state import AgentState
 from app.agent.prompts import INTENT_ROUTER_PROMPT, ENTITY_EXTRACTION_PROMPT
 
 
-router_llm = ChatOpenAI(
-    model="deepseek-chat",
-    api_key=settings.deepseek_api_key,
-    base_url=settings.deepseek_base_url,
-    temperature=0,
-)
+def _get_router_llm():
+    """懒加载 router LLM，避免模块导入时因缺少 API key 而报错"""
+    return ChatOpenAI(
+        model="deepseek-chat",
+        api_key=settings.deepseek_api_key,
+        base_url=settings.deepseek_base_url,
+        temperature=0,
+    )
 
 
 async def classify_intent(state: AgentState) -> dict:
@@ -20,6 +22,7 @@ async def classify_intent(state: AgentState) -> dict:
     user_input = state["messages"][-1].content if state["messages"] else ""
 
     # 1. 意图分类
+    router_llm = _get_router_llm()
     resp = await router_llm.ainvoke([
         SystemMessage(content=INTENT_ROUTER_PROMPT),
         HumanMessage(content=user_input),
