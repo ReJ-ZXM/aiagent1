@@ -21,12 +21,25 @@ class ChatRequest(BaseModel):
     content: str = Field(..., min_length=1, description="用户输入内容")
 
 
-def generate_sse(conv_id: str, user_content: str):
+def generate_sse(conv_id: str, user_content: str, history: list[dict] | None = None):
     """生成 SSE 事件流 — 使用 ainvoke 单次执行，避免重复调用"""
-    from langchain_core.messages import HumanMessage
+    from langchain_core.messages import HumanMessage, AIMessage
+
+    # 从历史构建消息列表
+    messages = []
+    if history:
+        for m in history:
+            if m["role"] == "user":
+                messages.append(HumanMessage(content=m["content"]))
+            elif m["role"] == "assistant":
+                messages.append(AIMessage(content=m["content"]))
+
+    # 确保最后一条是当前用户消息
+    if not messages or messages[-1].content != user_content:
+        messages.append(HumanMessage(content=user_content))
 
     initial_state: AgentState = {
-        "messages": [HumanMessage(content=user_content)],
+        "messages": messages,
         "destination": "",
         "origin": "",
         "start_date": "",
@@ -105,7 +118,6 @@ def generate_sse(conv_id: str, user_content: str):
 @router.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
     """SSE 流式对话"""
-    # 创建或获取对话
     async with async_session() as db:
         if req.conversation_id:
             conv = await db.get(Conversation, req.conversation_id)
@@ -127,9 +139,21 @@ async def chat_stream(req: ChatRequest):
         db.add(user_msg)
         await db.commit()
 
-    # 返回 SSE 流
+        # 加载历史消息（当前这条 + 之前所有的）
+        result = await db.execute(
+            sa_select(Message)
+            .where(Message.conversation_id == conv.id)
+            .order_by(Message.created_at)
+        )
+        history = result.scalars().all()
+        history_messages = [
+            {"role": m.role, "content": m.content}
+            for m in history
+        ]
+
+    # 返回 SSE 流（携带完整历史）
     return StreamingResponse(
-        generate_sse(conv.id, req.content),
+        generate_sse(conv.id, req.content, history_messages),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

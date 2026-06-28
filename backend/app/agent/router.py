@@ -52,7 +52,7 @@ async def classify_intent(state: AgentState) -> dict:
     # 2. 抽取实体
     from datetime import date
 
-    # 从已有 state 中继承已知值
+    # 从已有 state 中继承已知值（但目的地/日期/预算总是用最新的）
     destination = state.get("destination", "")
     origin = state.get("origin", "")
     start_date = state.get("start_date", "")
@@ -77,7 +77,7 @@ async def classify_intent(state: AgentState) -> dict:
         ])
         try:
             entity = json.loads(entity_resp.content)
-            # 只更新非 null 的字段（不覆盖已有值）
+            # 目的地/日期/预算：每次都用最新提取的值覆盖（用户可能在追问中更改）
             if entity.get("destination"):
                 destination = entity["destination"]
             if entity.get("origin"):
@@ -90,9 +90,11 @@ async def classify_intent(state: AgentState) -> dict:
                 num_travelers = entity["num_travelers"]
             if entity.get("budget"):
                 budget = entity["budget"]
+            # 偏好：累积合并
             if entity.get("preferences"):
                 new_prefs = entity["preferences"]
                 preferences = list(set(preferences + new_prefs))
+            # 用户画像：用最新值覆盖
             if entity.get("age"):
                 age = entity["age"]
             if entity.get("taste"):
