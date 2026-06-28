@@ -1,18 +1,24 @@
 """认证服务 — JWT + 密码哈希"""
+import hashlib
+import os
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
-from passlib.context import CryptContext
 from app.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET = settings.secret_key
 ALGORITHM = "HS256"
 
 def hash_password(pw: str) -> str:
-    return pwd_context.hash(pw)
+    salt = os.urandom(32).hex()
+    h = hashlib.sha256((pw + salt).encode()).hexdigest()
+    return f"{salt}${h}"
 
 def verify_password(pw: str, hashed: str) -> bool:
-    return pwd_context.verify(pw, hashed)
+    try:
+        salt, h = hashed.split("$", 1)
+        return hashlib.sha256((pw + salt).encode()).hexdigest() == h
+    except Exception:
+        return False
 
 def create_token(user_id: str) -> str:
     expire = datetime.utcnow() + timedelta(days=30)
