@@ -48,58 +48,54 @@ def generate_sse(conv_id: str, user_content: str, history: list[dict] | None = N
         try:
             final_plan = None
             final_messages = []
+            emitted_content = False  # 防止重复发送
 
-            # 使用 astream_events 实时推送每个步骤
             async for event in agent_graph.astream_events(initial_state, version="v2"):
                 kind = event.get("event", "")
                 name = event.get("name", "")
                 data = event.get("data", {})
 
-                # 节点进入事件 → thinking 状态
                 if kind == "on_chain_start":
                     if name == "classify_intent":
-                        yield f"event: thinking\ndata: {json.dumps({'msg': '🤔 正在分析你的需求...'})}\n\n"
+                        yield f"event: thinking\ndata: {json.dumps({'msg': '正在分析你的需求...'})}\n\n"
                     elif name == "plan_trip":
-                        yield f"event: thinking\ndata: {json.dumps({'msg': '🗺️ 正在为你规划行程方案...'})}\n\n"
+                        yield f"event: thinking\ndata: {json.dumps({'msg': '正在为你规划行程方案...'})}\n\n"
                     elif name == "clarify_needs":
-                        yield f"event: thinking\ndata: {json.dumps({'msg': '💬 想多了解你一些...'})}\n\n"
+                        yield f"event: thinking\ndata: {json.dumps({'msg': '想多了解你一些...'})}\n\n"
 
-                # 工具开始调用
                 elif kind == "on_tool_start":
                     tool_name = event.get("name", "unknown")
                     yield f"event: tool_call\ndata: {json.dumps({'tool': tool_name, 'status': 'running'})}\n\n"
-                    yield f"event: thinking\ndata: {json.dumps({'msg': f'🔍 正在查询: {tool_name}...'})}\n\n"
 
-                # 工具调用结束
                 elif kind == "on_tool_end":
                     tool_name = event.get("name", "unknown")
-                    yield f"event: tool_result\ndata: {json.dumps({'tool': tool_name, 'elapsed_ms': 0})}\n\n"
+                    yield f"event: tool_result\ndata: {json.dumps({'tool': tool_name})}\n\n"
 
-                # 节点结束 → 捕获最终输出
-                elif kind == "on_chain_end":
+                elif kind == "on_chain_end" and name in ("plan_trip", "clarify_needs", "casual_reply"):
                     output = data.get("output", {})
                     if isinstance(output, dict):
-                        # 收集 plan
+                        # 只捕获最终节点的 plan
                         p = output.get("plan")
                         if p and isinstance(p, dict) and not p.get("error"):
                             final_plan = p
                             yield f"event: card\ndata: {json.dumps({'type': 'itinerary', 'data': p})}\n\n"
-                        # 收集 messages
+                            emitted_content = True
+
                         msgs = output.get("messages", [])
                         if msgs:
                             final_messages = msgs
-                        # thinking 推送
+
                         thinking_text = output.get("thinking", "")
                         if thinking_text:
                             for line in thinking_text.split("\n"):
                                 if line.strip():
                                     yield f"event: thinking\ndata: {json.dumps({'msg': line.strip()})}\n\n"
 
-            # 推送文本回复 — 有卡片时不再单独发文字，避免重复
-            if not final_plan and final_messages:
+            # 只在没有卡片时发送纯文本回复
+            if not emitted_content and final_messages:
                 last_msg = final_messages[-1]
                 content = last_msg.content if hasattr(last_msg, "content") else ""
-                if content and "```" not in content:
+                if content:
                     yield f"event: content\ndata: {json.dumps({'delta': content})}\n\n"
 
             yield f"event: done\ndata: {json.dumps({'conv_id': conv_id})}\n\n"
