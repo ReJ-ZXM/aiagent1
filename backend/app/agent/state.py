@@ -18,8 +18,15 @@ class AgentState(TypedDict):
     budget: float             # 预算金额
     preferences: list[str]    # 偏好标签, e.g. ["自然风光", "美食"]
 
+    # 多轮追问收集的用户画像
+    age: str                  # 年龄范围, e.g. "25-30"
+    taste: str                # 口味偏好, e.g. "清淡，不吃辣"
+    travel_style: str         # 旅行风格: "自然风光" | "人文历史" | "城市购物" | "综合"
+    companion: str            # 同行人: "独自" | "情侣" | "亲子" | "朋友"
+
     # Agent 工作状态
-    intent: str               # 意图类型: "plan_trip" | "qa" | "casual"
+    intent: str               # 意图类型: "plan_trip" | "clarify_answer" | "qa" | "casual"
     thinking: str             # 当前 thinking 消息 (SSE 发送)
     plan: dict | None         # 最终生成的行程方案 (结构化 JSON)
+    need_clarification: bool  # 是否需要追问
     error: str                # 错误信息

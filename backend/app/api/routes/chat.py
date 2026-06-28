@@ -34,9 +34,14 @@ def generate_sse(conv_id: str, user_content: str):
         "num_travelers": 1,
         "budget": 0,
         "preferences": [],
+        "age": "",
+        "taste": "",
+        "travel_style": "",
+        "companion": "",
         "intent": "",
         "thinking": "",
         "plan": None,
+        "need_clarification": False,
         "error": "",
     }
 

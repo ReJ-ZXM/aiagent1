@@ -8,7 +8,7 @@ from app.agent.prompts import INTENT_ROUTER_PROMPT, ENTITY_EXTRACTION_PROMPT
 
 
 def _get_router_llm():
-    """懒加载 router LLM，避免模块导入时因缺少 API key 而报错"""
+    """懒加载 router LLM"""
     return ChatOpenAI(
         model="deepseek-chat",
         api_key=settings.deepseek_api_key,
@@ -21,10 +21,25 @@ async def classify_intent(state: AgentState) -> dict:
     """分类用户意图并抽取旅行实体"""
     user_input = state["messages"][-1].content if state["messages"] else ""
 
+    # 构建已知信息上下文
+    known_parts = []
+    if state.get("destination"):
+        known_parts.append(f"目的地={state['destination']}")
+    if state.get("start_date"):
+        known_parts.append(f"日期={state['start_date']}-{state.get('end_date', '')}")
+    if state.get("budget"):
+        known_parts.append(f"预算={state['budget']}元")
+    if state.get("travel_style"):
+        known_parts.append(f"旅行风格={state['travel_style']}")
+    known_context = ", ".join(known_parts) if known_parts else "无"
+
     # 1. 意图分类
     router_llm = _get_router_llm()
     resp = await router_llm.ainvoke([
-        SystemMessage(content=INTENT_ROUTER_PROMPT),
+        SystemMessage(content=INTENT_ROUTER_PROMPT.format(
+            context=known_context,
+            user_input=user_input,
+        )),
         HumanMessage(content=user_input),
     ])
     try:
@@ -34,37 +49,67 @@ async def classify_intent(state: AgentState) -> dict:
 
     intent = intent_data.get("intent", "casual")
 
-    # 2. 如果是规划意图，抽取实体
-    destination = ""
-    origin = ""
-    start_date = ""
-    end_date = ""
-    num_travelers = 1
-    budget = 0.0
-    preferences: list[str] = []
+    # 2. 抽取实体
+    from datetime import date
 
-    if intent == "plan_trip":
-        from datetime import date
-        # 简化：用 DeepSeek 抽取实体
+    # 从已有 state 中继承已知值
+    destination = state.get("destination", "")
+    origin = state.get("origin", "")
+    start_date = state.get("start_date", "")
+    end_date = state.get("end_date", "")
+    num_travelers = state.get("num_travelers", 1)
+    budget = state.get("budget", 0.0)
+    preferences = list(state.get("preferences", []))
+    age = state.get("age", "")
+    taste = state.get("taste", "")
+    travel_style = state.get("travel_style", "")
+    companion = state.get("companion", "")
+
+    if intent in ("plan_trip", "clarify_answer"):
         entity_resp = await router_llm.ainvoke([
             SystemMessage(content=ENTITY_EXTRACTION_PROMPT.format(
                 current_date=date.today().isoformat(),
                 home_city="上海",
+                known_info=known_context,
                 user_input=user_input,
             )),
             HumanMessage(content=user_input),
         ])
         try:
             entity = json.loads(entity_resp.content)
-            destination = entity.get("destination") or ""
-            origin = entity.get("origin") or "上海"
-            start_date = entity.get("start_date") or ""
-            end_date = entity.get("end_date") or ""
-            num_travelers = entity.get("num_travelers") or 1
-            budget = entity.get("budget") or 0.0
-            preferences = entity.get("preferences") or []
+            # 只更新非 null 的字段（不覆盖已有值）
+            if entity.get("destination"):
+                destination = entity["destination"]
+            if entity.get("origin"):
+                origin = entity["origin"]
+            if entity.get("start_date"):
+                start_date = entity["start_date"]
+            if entity.get("end_date"):
+                end_date = entity["end_date"]
+            if entity.get("num_travelers"):
+                num_travelers = entity["num_travelers"]
+            if entity.get("budget"):
+                budget = entity["budget"]
+            if entity.get("preferences"):
+                new_prefs = entity["preferences"]
+                preferences = list(set(preferences + new_prefs))
+            if entity.get("age"):
+                age = entity["age"]
+            if entity.get("taste"):
+                taste = entity["taste"]
+            if entity.get("travel_style"):
+                travel_style = entity["travel_style"]
+            if entity.get("companion"):
+                companion = entity["companion"]
         except json.JSONDecodeError:
             pass
+
+    # 3. 判断是否需要追问 (首次规划 + 缺少关键偏好)
+    need_clarification = (
+        intent == "plan_trip"
+        and not state.get("need_clarification")  # 还没追问过
+        and (not travel_style or not taste or not age)
+    )
 
     return {
         "intent": intent,
@@ -75,5 +120,13 @@ async def classify_intent(state: AgentState) -> dict:
         "num_travelers": num_travelers,
         "budget": budget,
         "preferences": preferences,
-        "thinking": f"识别意图: {intent}" + (f", 目的地: {destination}" if destination else ""),
+        "age": age,
+        "taste": taste,
+        "travel_style": travel_style,
+        "companion": companion,
+        "need_clarification": need_clarification,
+        "thinking": (
+            f"识别意图: {intent}, 目的地: {destination}"
+            if destination else f"识别意图: {intent}"
+        ),
     }
