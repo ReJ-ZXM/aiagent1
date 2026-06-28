@@ -19,14 +19,18 @@ export default function MessageList({ messages }: Props) {
     return (
       <div className="flex-1 flex items-center justify-center wave-bg">
         <div className="text-center animate-fade-in">
-          <div className="text-7xl mb-6">🌍</div>
-          <h2 className="text-2xl font-bold text-gray-700 mb-3">你的 AI 旅行助手</h2>
+          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-travel-500 to-ocean-500 flex items-center justify-center shadow-lg">
+            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-700 mb-3">旅行 AI 助手</h2>
           <p className="text-gray-400 text-lg mb-2">告诉我你想去哪里，剩下的交给我</p>
-          <div className="flex flex-wrap justify-center gap-2 mt-6 text-sm text-gray-400">
-            <span className="bg-white/80 backdrop-blur rounded-full px-4 py-1.5 shadow-sm">🏔️ 自然风光</span>
-            <span className="bg-white/80 backdrop-blur rounded-full px-4 py-1.5 shadow-sm">🏛️ 人文历史</span>
-            <span className="bg-white/80 backdrop-blur rounded-full px-4 py-1.5 shadow-sm">🍜 美食探店</span>
-            <span className="bg-white/80 backdrop-blur rounded-full px-4 py-1.5 shadow-sm">🛍️ 城市购物</span>
+          <div className="flex flex-wrap justify-center gap-2 mt-6 text-sm text-gray-500">
+            <span className="bg-white/80 backdrop-blur rounded-full px-4 py-1.5 shadow-sm">自然风光</span>
+            <span className="bg-white/80 backdrop-blur rounded-full px-4 py-1.5 shadow-sm">人文历史</span>
+            <span className="bg-white/80 backdrop-blur rounded-full px-4 py-1.5 shadow-sm">美食探店</span>
+            <span className="bg-white/80 backdrop-blur rounded-full px-4 py-1.5 shadow-sm">城市购物</span>
           </div>
           <p className="text-xs text-gray-300 mt-8">试试说："明天去杭州3天，预算3000"</p>
         </div>
@@ -43,8 +47,10 @@ export default function MessageList({ messages }: Props) {
         >
           {/* 助理头像 */}
           {msg.role === 'assistant' && (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-travel-400 to-ocean-400 flex items-center justify-center text-white text-sm shrink-0 mr-2 mt-1 shadow-sm">
-              ✈️
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-travel-400 to-ocean-400 flex items-center justify-center text-white shrink-0 mr-2 mt-1 shadow-sm">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
             </div>
           )}
 
@@ -70,7 +76,9 @@ export default function MessageList({ messages }: Props) {
                 {card.type === 'itinerary' && card.data.summary && (
                   <div className="card-travel p-4 bg-gradient-to-br from-travel-50 to-ocean-50 border-0">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">✨</span>
+                      <svg className="w-4 h-4 text-travel-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
                       <span className="text-sm font-bold text-travel-700">方案概要</span>
                     </div>
                     <p className="text-sm text-gray-600 leading-relaxed">{card.data.summary}</p>
@@ -97,8 +105,10 @@ export default function MessageList({ messages }: Props) {
 
           {/* 用户头像 */}
           {msg.role === 'user' && (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sunset-400 to-sunset-500 flex items-center justify-center text-white text-sm shrink-0 ml-2 mt-1 shadow-sm">
-              🧑
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sunset-400 to-sunset-500 flex items-center justify-center text-white shrink-0 ml-2 mt-1 shadow-sm">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
             </div>
           )}
         </div>
@@ -116,7 +126,7 @@ function BudgetBar({ breakdown, budget }: { breakdown: { total: number; remainin
   return (
     <div className="card-travel p-4">
       <div className="flex justify-between items-center mb-3">
-        <span className="text-sm font-bold text-gray-700">💰 预算概览</span>
+        <span className="text-sm font-bold text-gray-700">预算概览</span>
         <span className={`text-xs font-bold ${isOverBudget ? 'text-sunset-500' : 'text-emerald-500'}`}>
           {pct}% 已用
         </span>

@@ -3,7 +3,7 @@ import type { DayPlan, TripItem } from '../../types'
 interface Props { day: DayPlan }
 
 const ICONS: Record<string, string> = {
-  attraction: '📍', meal: '🍜', transport: '🚄', hotel: '🏨',
+  attraction: 'pin', meal: 'food', transport: 'train', hotel: 'hotel',
 }
 
 const COLORS: Record<string, string> = {
@@ -32,10 +32,10 @@ export default function DayPlanCard({ day }: Props) {
   )
 }
 
-function TimelineItem({ item, icon, color }: { item: TripItem; icon: string; color: string }) {
+function TimelineItem({ item, color }: { item: TripItem; icon: string; color: string }) {
   return (
     <div className={`flex gap-3 text-sm border border-gray-100 rounded-xl p-3 ${color}`}>
-      <span className="shrink-0 text-base">{icon}</span>
+      <span className="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-current opacity-40" />
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-start">
           <span className="font-medium text-gray-800 truncate">{item.title}</span>
