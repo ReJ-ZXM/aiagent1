@@ -10,6 +10,10 @@ def route_by_intent(state: AgentState) -> str:
     """根据意图和状态路由到不同节点"""
     intent = state.get("intent", "casual")
 
+    # 有已有计划 + 用户想修改 → 修改计划
+    if intent == "modify_trip":
+        return "modify_trip"
+
     # 首次规划 + 缺少偏好 → 先追问
     if intent == "plan_trip" and state.get("need_clarification"):
         return "clarify_needs"
@@ -23,6 +27,51 @@ def route_by_intent(state: AgentState) -> str:
         return "plan_trip"
 
     return "casual_reply"
+
+
+async def modify_trip(state: AgentState) -> dict:
+    """修改已有行程"""
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import HumanMessage, SystemMessage
+    from app.config import settings
+    import json as _json
+
+    llm = ChatOpenAI(
+        model="deepseek-chat",
+        api_key=settings.deepseek_api_key,
+        base_url=settings.deepseek_base_url,
+        temperature=0.7, max_tokens=4096,
+    )
+
+    existing_plan = state.get("plan") or {}
+    user_request = state["messages"][-1].content if state["messages"] else ""
+
+    prompt = f"""用户想要修改已有的旅行计划。请根据修改需求更新计划。
+
+已有计划: {_json.dumps(existing_plan, ensure_ascii=False, indent=2)}
+
+修改需求: {user_request}
+
+只输出更新后的完整JSON计划（与原有结构一致）。如果修改需求不明确，尽量理解用户意图并给出合理调整。"""
+
+    resp = await llm.ainvoke([
+        SystemMessage(content="你是旅行规划专家。输出完整JSON计划。"),
+        HumanMessage(content=prompt),
+    ])
+    content = resp.content.strip()
+    if "```" in content:
+        content = content.split("```")[1].split("```")[0].strip()
+    if content.startswith("json"): content = content[4:].strip()
+    try:
+        plan = _json.loads(content)
+    except Exception:
+        plan = {"error": "修改失败", "raw": content[:500]}
+
+    return {
+        "plan": plan,
+        "thinking": "正在根据你的要求调整行程...",
+        "messages": [resp],
+    }
 
 
 async def clarify_needs(state: AgentState) -> dict:
@@ -87,6 +136,7 @@ def build_graph():
     workflow.add_node("classify_intent", classify_intent)
     workflow.add_node("clarify_needs", clarify_needs)
     workflow.add_node("plan_trip", plan_trip)
+    workflow.add_node("modify_trip", modify_trip)
     workflow.add_node("casual_reply", casual_reply)
 
     # 设置入口
@@ -99,13 +149,15 @@ def build_graph():
         {
             "clarify_needs": "clarify_needs",
             "plan_trip": "plan_trip",
+            "modify_trip": "modify_trip",
             "casual_reply": "casual_reply",
         },
     )
 
-    # clarify_needs 之后结束（等用户回复）
+    # 结束
     workflow.add_edge("clarify_needs", END)
     workflow.add_edge("plan_trip", END)
+    workflow.add_edge("modify_trip", END)
     workflow.add_edge("casual_reply", END)
 
     return workflow.compile()

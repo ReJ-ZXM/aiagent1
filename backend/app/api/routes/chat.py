@@ -21,7 +21,7 @@ class ChatRequest(BaseModel):
     content: str = Field(..., min_length=1, description="用户输入内容")
 
 
-def generate_sse(conv_id: str, user_content: str, history: list[dict] | None = None):
+def generate_sse(conv_id: str, user_content: str, history: list[dict] | None = None, previous_plan: dict | None = None):
     """生成 SSE 事件流 — 使用 astream_events 实现真正的实时流式推送"""
     from langchain_core.messages import HumanMessage, AIMessage
 
@@ -40,7 +40,7 @@ def generate_sse(conv_id: str, user_content: str, history: list[dict] | None = N
         "destination": "", "origin": "", "start_date": "", "end_date": "",
         "num_travelers": 1, "budget": 0, "preferences": [],
         "age": "", "taste": "", "travel_style": "", "companion": "",
-        "intent": "", "thinking": "", "plan": None,
+        "intent": "", "thinking": "", "plan": previous_plan,
         "need_clarification": False, "error": "",
     }
 
@@ -147,10 +147,31 @@ async def chat_stream(req: ChatRequest):
             {"role": m.role, "content": m.content}
             for m in history
         ]
+        previous_plan = conv.plan_snapshot
+        conv_id_for_stream = conv.id
 
-    # 返回 SSE 流（携带完整历史）
+    # 返回 SSE 流 + 自动保存计划
+    async def stream_and_save():
+        final_plan = None
+        async for sse_chunk in generate_sse(conv_id_for_stream, req.content, history_messages, previous_plan):
+            yield sse_chunk
+            if sse_chunk.startswith("event: card"):
+                try:
+                    data_part = sse_chunk.split("data: ")[1].strip()
+                    card_data = json.loads(data_part)
+                    if card_data.get("type") == "itinerary":
+                        final_plan = card_data.get("data")
+                except Exception:
+                    pass
+        if final_plan:
+            async with async_session() as db2:
+                c = await db2.get(Conversation, conv_id_for_stream)
+                if c:
+                    c.plan_snapshot = final_plan
+                    await db2.commit()
+
     return StreamingResponse(
-        generate_sse(conv.id, req.content, history_messages),
+        stream_and_save(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

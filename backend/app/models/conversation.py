@@ -13,6 +13,7 @@ class Conversation(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title: Mapped[str] = mapped_column(String(200), default="新对话")
     trip_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    plan_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     message_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
