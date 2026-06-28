@@ -9,13 +9,11 @@ from app.agent.tools import ALL_TOOLS
 
 
 def _get_planner_llm():
-    """延迟初始化，避免模块导入时因缺少 API Key 报错"""
     return ChatOpenAI(
         model="deepseek-chat",
         api_key=settings.deepseek_api_key,
         base_url=settings.deepseek_base_url,
-        temperature=0.7,
-        max_tokens=4096,
+        temperature=0.7, max_tokens=4096,
     )
 
 
@@ -25,8 +23,6 @@ async def plan_trip(state: AgentState) -> dict:
     planner_with_tools = planner_llm.bind_tools(ALL_TOOLS)
 
     thinking_messages = []
-
-    # 构建上下文
     context = f"""用户旅行需求:
 - 目的地: {state['destination']}
 - 出发地: {state['origin']}
@@ -35,12 +31,8 @@ async def plan_trip(state: AgentState) -> dict:
 - 预算: {state['budget']}元
 - 偏好: {', '.join(state['preferences']) if state['preferences'] else '无特殊偏好'}
 """
-
-    # Step 1: Claude 决定调用哪些工具
     thinking_messages.append("正在分析你的需求...")
     thinking_messages.append(f"目的地: {state['destination']}, 预算: {state['budget']}元")
-
-    # Step 2: 并行搜集信息
     thinking_messages.append("正在搜索景点和酒店...")
     search_query = f"请根据以下信息规划行程: {context}"
 
@@ -49,27 +41,25 @@ async def plan_trip(state: AgentState) -> dict:
         HumanMessage(content=search_query),
     ])
 
-    # 处理工具调用
+    # 处理工具调用 — 每个 tool_call 必须有对应的 ToolMessage
     tool_results = []
     if hasattr(response, "tool_calls") and response.tool_calls:
-        from app.agent.tools.search import search_attractions, search_hotels
+        from app.agent.tools.search import search_attractions, search_hotels, search_trains
         from app.agent.tools.weather import get_weather
         from app.agent.tools.map_tools import geocode_address
+
+        tool_map = {
+            "search_attractions": search_attractions,
+            "search_hotels": search_hotels,
+            "search_trains": search_trains,
+            "get_weather": get_weather,
+            "geocode_address": geocode_address,
+        }
 
         for tc in response.tool_calls:
             tool_name = tc.get("name", "")
             tool_args = tc.get("args", {})
-
             thinking_messages.append(f"正在调用: {tool_name}...")
-            thinking_messages.append(f"查询参数: {tool_args}")
-
-            # 执行工具
-            tool_map = {
-                "search_attractions": search_attractions,
-                "search_hotels": search_hotels,
-                "get_weather": get_weather,
-                "geocode_address": geocode_address,
-            }
             tool_fn = tool_map.get(tool_name)
             if tool_fn:
                 try:
@@ -77,28 +67,37 @@ async def plan_trip(state: AgentState) -> dict:
                     tool_results.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
                 except Exception as tool_err:
                     tool_results.append(ToolMessage(
-                        content=str({"error": f"工具执行失败: {str(tool_err)}"}),
+                        content=str({"error": f"工具失败: {str(tool_err)}"}),
                         tool_call_id=tc["id"],
                     ))
+            else:
+                tool_results.append(ToolMessage(
+                    content=str({"error": f"未知工具: {tool_name}"}),
+                    tool_call_id=tc["id"],
+                ))
 
-    # Step 3: 用工具结果 + Claude 生成最终行程
     thinking_messages.append("正在生成行程方案...")
 
-    final_messages = [
-        SystemMessage(content=PLANNER_SYSTEM_PROMPT),
-        HumanMessage(content=search_query),
-        response,
-        *tool_results,
-        HumanMessage(content="请根据以上工具返回的数据，生成完整的行程 JSON 方案。严格按照 JSON 格式输出。"),
-    ]
+    if tool_results:
+        final_messages = [
+            SystemMessage(content=PLANNER_SYSTEM_PROMPT),
+            HumanMessage(content=search_query),
+            response,
+            *tool_results,
+            HumanMessage(content="请根据以上数据生成完整行程JSON方案。只输出JSON。"),
+        ]
+    else:
+        final_messages = [
+            SystemMessage(content=PLANNER_SYSTEM_PROMPT),
+            HumanMessage(content=search_query),
+            HumanMessage(content="请直接根据你的知识生成完整行程JSON方案。只输出JSON。"),
+        ]
 
     final_response = await planner_llm.ainvoke(final_messages)
 
-    # 解析行程 JSON
     plan = None
     try:
         content = final_response.content
-        # 提取 JSON 块
         if "```json" in content:
             json_str = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
